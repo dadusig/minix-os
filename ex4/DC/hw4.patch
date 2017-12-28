@@ -1,0 +1,283 @@
+diff --git a/include/minix/callnr.h b/include/minix/callnr.h
+index 6f145cf..a17356d 100644
+--- a/include/minix/callnr.h
++++ b/include/minix/callnr.h
+@@ -1,28 +1,28 @@
+ #define NCALLS		 114	/* number of system calls allowed */
+ 
+ /* In case it isn't obvious enough: this list is sorted numerically. */
+-#define EXIT		   1 
+-#define FORK		   2 
+-#define READ		   3 
+-#define WRITE		   4 
+-#define OPEN		   5 
+-#define CLOSE		   6 
++#define EXIT		   1
++#define FORK		   2
++#define READ		   3
++#define WRITE		   4
++#define OPEN		   5
++#define CLOSE		   6
+ #define WAIT		   7
+-#define CREAT		   8 
+-#define LINK		   9 
+-#define UNLINK		  10 
++#define CREAT		   8
++#define LINK		   9
++#define UNLINK		  10
+ #define WAITPID		  11
+-#define CHDIR		  12 
++#define CHDIR		  12
+ #define TIME		  13
+-#define MKNOD		  14 
+-#define CHMOD		  15 
+-#define CHOWN		  16 
++#define MKNOD		  14
++#define CHMOD		  15
++#define CHOWN		  16
+ #define BRK		  17
+ #define PREV_STAT	  18
+ #define LSEEK		  19
+ #define MINIX_GETPID	  20
+-#define MOUNT		  21 
+-#define UMOUNT		  22 
++#define MOUNT		  21
++#define UMOUNT		  22
+ #define SETUID		  23
+ #define GETUID		  24
+ #define STIME		  25
+@@ -30,18 +30,18 @@
+ #define ALARM		  27
+ #define PREV_FSTAT	  28
+ #define PAUSE		  29
+-#define UTIME		  30 
++#define UTIME		  30
+ #define GETEPINFO	  31
+ #define SETGROUPS	  32
+-#define ACCESS		  33 
++#define ACCESS		  33
+ #define GETGROUPS	  34
+-#define SYNC		  36 
++#define SYNC		  36
+ #define KILL		  37
+ #define RENAME		  38
+ #define MKDIR		  39
+ #define RMDIR		  40
+-#define DUP		  41 
+-#define PIPE		  42 
++#define DUP		  41
++#define PIPE		  42
+ #define TIMES		  43
+ #define SYMLINK		  45
+ #define SETGID		  46
+@@ -56,8 +56,8 @@
+ #define FCNTL		  55
+ #define FS_READY	  57
+ #define EXEC		  59
+-#define UMASK		  60 
+-#define CHROOT		  61 
++#define UMASK		  60
++#define CHROOT		  61
+ #define SETSID		  62
+ #define GETPGRP		  63
+ #define ITIMER		  64
+@@ -65,6 +65,8 @@
+ #define SETGROUPS_O	  66
+ #define GETMCONTEXT       67
+ #define SETMCONTEXT       68
++#define MYSYSTEMCALL      69
++#define GETPPID		69
+ 
+ /* Posix signal handling. */
+ #define SIGACTION	  71
+@@ -109,7 +111,7 @@
+ 
+ #define PM_GETSID	113	/* PM getsid() */
+ 
+-#define TASK_REPLY	121	/* to VFS: reply code from drivers, not 
++#define TASK_REPLY	121	/* to VFS: reply code from drivers, not
+ 				 * really a standalone call.
+ 				 */
+ #define MAPDRIVER      122     /* to VFS, map a device */
+diff --git a/servers/pm/misc.c b/servers/pm/misc.c
+index dbe979f..51b62c6 100644
+--- a/servers/pm/misc.c
++++ b/servers/pm/misc.c
+@@ -62,6 +62,41 @@ unsigned long calls_stats[NCALLS];
+ #endif
+ 
+ /*===========================================================================*
++ *				do_getppid				     *
++ *===========================================================================*/
++
++int do_getppid()
++{
++    int pid_in = m_in.m1_i1;
++
++    int c = 0;
++    while (c < NR_PROCS)
++    {
++       int n = mproc[c].mp_pid;
++       int pinx = mproc[c].mp_parent;
++       int ppid = mproc[pinx].mp_pid;
++
++
++       if(pid_in == n)
++       {
++          return ppid;
++       }
++
++       c++;
++    }
++    return 0;
++}
++
++/*===========================================================================*
++ *				do_mysystemcall				     *
++ *===========================================================================*/
++
++int do_mysystemcall()
++{
++   return procs_in_use;
++}
++
++/*===========================================================================*
+  *				do_sysuname				     *
+  *===========================================================================*/
+ int do_sysuname()
+@@ -96,7 +131,7 @@ int do_sysuname()
+ 	/* Copy an uname string to the user. */
+ 	n = strlen(string) + 1;
+ 	if (n > m_in.sysuname_len) n = m_in.sysuname_len;
+-	r = sys_vircopy(SELF, (phys_bytes) string, 
++	r = sys_vircopy(SELF, (phys_bytes) string,
+ 		mp->mp_endpoint, (phys_bytes) m_in.sysuname_value,
+ 		(phys_bytes) n);
+ 	if (r < 0) return(r);
+@@ -153,7 +188,7 @@ int do_getsysinfo()
+   case SI_CALL_STATS:
+   	src_addr = (vir_bytes) calls_stats;
+   	len = sizeof(calls_stats);
+-  	break; 
++  	break;
+ #endif
+   default:
+   	return(EINVAL);
+@@ -205,21 +240,21 @@ int do_getprocnr()
+ #endif
+ 		return(OK);
+ 	}
+-  	return(ESRCH);			
++  	return(ESRCH);
+   } else if (m_in.namelen > 0) {	/* lookup process by name */
+   	key_len = MIN(m_in.namelen, PROC_NAME_LEN);
+- 	if (OK != (s=sys_datacopy(who_e, (vir_bytes) m_in.PMBRK_ADDR, 
+- 			SELF, (vir_bytes) search_key, key_len))) 
++ 	if (OK != (s=sys_datacopy(who_e, (vir_bytes) m_in.PMBRK_ADDR,
++ 			SELF, (vir_bytes) search_key, key_len)))
+  		return(s);
+  	search_key[key_len] = '\0';	/* terminate for safety */
+   	for (rmp = &mproc[0]; rmp < &mproc[NR_PROCS]; rmp++) {
+-		if (((rmp->mp_flags & (IN_USE | EXITING)) == IN_USE) && 
++		if (((rmp->mp_flags & (IN_USE | EXITING)) == IN_USE) &&
+ 			strncmp(rmp->mp_name, search_key, key_len)==0) {
+   			mp->mp_reply.PM_ENDPT = rmp->mp_endpoint;
+   			return(OK);
+-		} 
++		}
+ 	}
+-  	return(ESRCH);			
++  	return(ESRCH);
+   } else {			/* return own/parent process number */
+ #if 0
+ 	printf("PM: endpt result: %d\n", mp->mp_reply.PM_ENDPT);
+@@ -295,11 +330,11 @@ int do_reboot()
+ 
+   /* See how the system should be aborted. */
+   abort_flag = (unsigned) m_in.reboot_flag;
+-  if (abort_flag >= RBT_INVALID) return(EINVAL); 
++  if (abort_flag >= RBT_INVALID) return(EINVAL);
+ 
+   /* Order matters here. When VFS is told to reboot, it exits all its
+    * processes, and then would be confused if they're exited again by
+-   * SIGKILL. So first kill, then reboot. 
++   * SIGKILL. So first kill, then reboot.
+    */
+ 
+   check_sig(-1, SIGKILL, FALSE /* ksig*/); /* kill all users except init */
+@@ -349,7 +384,7 @@ int do_getsetpriority()
+ 	/* Only root is allowed to reduce the nice level. */
+ 	if (rmp->mp_nice > arg_pri && mp->mp_effuid != SUPER_USER)
+ 		return(EACCES);
+-	
++
+ 	/* We're SET, and it's allowed.
+ 	 *
+ 	 * The value passed in is currently between PRIO_MIN and PRIO_MAX.
+@@ -396,8 +431,8 @@ int do_svrctl()
+       size_t copy_len;
+ 
+       /* Copy sysgetenv structure to PM. */
+-      if (sys_datacopy(who_e, ptr, SELF, (vir_bytes) &sysgetenv, 
+-              sizeof(sysgetenv)) != OK) return(EFAULT);  
++      if (sys_datacopy(who_e, ptr, SELF, (vir_bytes) &sysgetenv,
++              sizeof(sysgetenv)) != OK) return(EFAULT);
+ 
+       /* Set a param override? */
+       if (req == PMSETPARAM) {
+@@ -409,7 +444,7 @@ int do_svrctl()
+   	 || sysgetenv.vallen >=
+   	 	 sizeof(local_param_overrides[local_params].value))
+   		return EINVAL;
+-  		
++
+           if ((s = sys_datacopy(who_e, (vir_bytes) sysgetenv.key,
+             SELF, (vir_bytes) local_param_overrides[local_params].name,
+                sysgetenv.keylen)) != OK)
+@@ -429,7 +464,7 @@ int do_svrctl()
+       if (sysgetenv.keylen == 0) {	/* copy all parameters */
+           val_start = monitor_params;
+           val_len = sizeof(monitor_params);
+-      } 
++      }
+       else {				/* lookup value for key */
+       	  int p;
+           /* Try to get a copy of the requested key. */
+@@ -458,8 +493,8 @@ int do_svrctl()
+       	return E2BIG;
+ 
+       /* Value found, make the actual copy (as far as possible). */
+-      copy_len = MIN(val_len, sysgetenv.vallen); 
+-      if ((s=sys_datacopy(SELF, (vir_bytes) val_start, 
++      copy_len = MIN(val_len, sysgetenv.vallen);
++      if ((s=sys_datacopy(SELF, (vir_bytes) val_start,
+               who_e, (vir_bytes) sysgetenv.val, copy_len)) != OK)
+           return(s);
+ 
+diff --git a/servers/pm/proto.h b/servers/pm/proto.h
+index 00646d3..f40596f 100644
+--- a/servers/pm/proto.h
++++ b/servers/pm/proto.h
+@@ -103,3 +103,7 @@ struct mproc *find_proc(pid_t lpid);
+ int nice_to_priority(int nice, unsigned *new_q);
+ int pm_isokendpt(int ep, int *proc);
+ void tell_vfs(struct mproc *rmp, message *m_ptr);
++
++/* mycall -> misc.c*/
++int do_mysystemcall(void);
++int do_getppid(void);
+diff --git a/servers/pm/table.c b/servers/pm/table.c
+index 5051cec..ec270ca 100644
+--- a/servers/pm/table.c
++++ b/servers/pm/table.c
+@@ -80,8 +80,8 @@ int (*call_vec[])(void) = {
+ 	do_set, 	/* 66 = setgroups */
+ 	do_getmcontext,	/* 67 = getmcontext */
+ 	do_setmcontext,	/* 68 = setmcontext */
+-	no_sys,		/* 69 = unused	*/
+-	no_sys,		/* 70 = unused	*/
++	do_mysystemcall,		/* 69 = unused	*/
++	do_getppid,		/* 70 = printppid	*/
+ 	do_sigaction,	/* 71 = sigaction   */
+ 	do_sigsuspend,	/* 72 = sigsuspend  */
+ 	do_sigpending,	/* 73 = sigpending  */
