@@ -99,10 +99,10 @@ index 6f145cf..c5897bc 100644
  				 */
  #define MAPDRIVER      122     /* to VFS, map a device */
 diff --git a/servers/pm/misc.c b/servers/pm/misc.c
-index dbe979f..82f37b3 100644
+index dbe979f..aab365a 100644
 --- a/servers/pm/misc.c
 +++ b/servers/pm/misc.c
-@@ -62,6 +62,16 @@ unsigned long calls_stats[NCALLS];
+@@ -62,6 +62,15 @@ unsigned long calls_stats[NCALLS];
  #endif
  
  /*===========================================================================*
@@ -112,14 +112,13 @@ index dbe979f..82f37b3 100644
 +int do_mysystemcall()
 +{
 +   return procs_in_use;
-+   //return 0;
 +}
 +
 +/*===========================================================================*
   *				do_sysuname				     *
   *===========================================================================*/
  int do_sysuname()
-@@ -96,7 +106,7 @@ int do_sysuname()
+@@ -96,7 +105,7 @@ int do_sysuname()
  	/* Copy an uname string to the user. */
  	n = strlen(string) + 1;
  	if (n > m_in.sysuname_len) n = m_in.sysuname_len;
@@ -128,7 +127,7 @@ index dbe979f..82f37b3 100644
  		mp->mp_endpoint, (phys_bytes) m_in.sysuname_value,
  		(phys_bytes) n);
  	if (r < 0) return(r);
-@@ -153,7 +163,7 @@ int do_getsysinfo()
+@@ -153,7 +162,7 @@ int do_getsysinfo()
    case SI_CALL_STATS:
    	src_addr = (vir_bytes) calls_stats;
    	len = sizeof(calls_stats);
@@ -137,7 +136,7 @@ index dbe979f..82f37b3 100644
  #endif
    default:
    	return(EINVAL);
-@@ -205,21 +215,21 @@ int do_getprocnr()
+@@ -205,21 +214,21 @@ int do_getprocnr()
  #endif
  		return(OK);
  	}
@@ -165,7 +164,7 @@ index dbe979f..82f37b3 100644
    } else {			/* return own/parent process number */
  #if 0
  	printf("PM: endpt result: %d\n", mp->mp_reply.PM_ENDPT);
-@@ -295,11 +305,11 @@ int do_reboot()
+@@ -295,11 +304,11 @@ int do_reboot()
  
    /* See how the system should be aborted. */
    abort_flag = (unsigned) m_in.reboot_flag;
@@ -179,7 +178,7 @@ index dbe979f..82f37b3 100644
     */
  
    check_sig(-1, SIGKILL, FALSE /* ksig*/); /* kill all users except init */
-@@ -349,7 +359,7 @@ int do_getsetpriority()
+@@ -349,7 +358,7 @@ int do_getsetpriority()
  	/* Only root is allowed to reduce the nice level. */
  	if (rmp->mp_nice > arg_pri && mp->mp_effuid != SUPER_USER)
  		return(EACCES);
@@ -188,7 +187,7 @@ index dbe979f..82f37b3 100644
  	/* We're SET, and it's allowed.
  	 *
  	 * The value passed in is currently between PRIO_MIN and PRIO_MAX.
-@@ -396,8 +406,8 @@ int do_svrctl()
+@@ -396,8 +405,8 @@ int do_svrctl()
        size_t copy_len;
  
        /* Copy sysgetenv structure to PM. */
@@ -199,7 +198,7 @@ index dbe979f..82f37b3 100644
  
        /* Set a param override? */
        if (req == PMSETPARAM) {
-@@ -409,7 +419,7 @@ int do_svrctl()
+@@ -409,7 +418,7 @@ int do_svrctl()
    	 || sysgetenv.vallen >=
    	 	 sizeof(local_param_overrides[local_params].value))
    		return EINVAL;
@@ -208,7 +207,7 @@ index dbe979f..82f37b3 100644
            if ((s = sys_datacopy(who_e, (vir_bytes) sysgetenv.key,
              SELF, (vir_bytes) local_param_overrides[local_params].name,
                 sysgetenv.keylen)) != OK)
-@@ -429,7 +439,7 @@ int do_svrctl()
+@@ -429,7 +438,7 @@ int do_svrctl()
        if (sysgetenv.keylen == 0) {	/* copy all parameters */
            val_start = monitor_params;
            val_len = sizeof(monitor_params);
@@ -217,7 +216,7 @@ index dbe979f..82f37b3 100644
        else {				/* lookup value for key */
        	  int p;
            /* Try to get a copy of the requested key. */
-@@ -458,8 +468,8 @@ int do_svrctl()
+@@ -458,8 +467,8 @@ int do_svrctl()
        	return E2BIG;
  
        /* Value found, make the actual copy (as far as possible). */
