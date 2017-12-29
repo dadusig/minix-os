@@ -1,5 +1,5 @@
 diff --git a/include/minix/callnr.h b/include/minix/callnr.h
-index 6f145cf..a17356d 100644
+index 6f145cf..039e4e0 100644
 --- a/include/minix/callnr.h
 +++ b/include/minix/callnr.h
 @@ -1,28 +1,28 @@
@@ -86,7 +86,7 @@ index 6f145cf..a17356d 100644
  #define GETMCONTEXT       67
  #define SETMCONTEXT       68
 +#define MYSYSTEMCALL      69
-+#define GETPPID		69
++#define GETPPID		70
  
  /* Posix signal handling. */
  #define SIGACTION	  71
@@ -267,7 +267,7 @@ index 00646d3..f40596f 100644
 +int do_mysystemcall(void);
 +int do_getppid(void);
 diff --git a/servers/pm/table.c b/servers/pm/table.c
-index 5051cec..ec270ca 100644
+index 5051cec..54888f1 100644
 --- a/servers/pm/table.c
 +++ b/servers/pm/table.c
 @@ -80,8 +80,8 @@ int (*call_vec[])(void) = {
@@ -276,8 +276,8 @@ index 5051cec..ec270ca 100644
  	do_setmcontext,	/* 68 = setmcontext */
 -	no_sys,		/* 69 = unused	*/
 -	no_sys,		/* 70 = unused	*/
-+	do_mysystemcall,		/* 69 = unused	*/
-+	do_getppid,		/* 70 = printppid	*/
++	do_mysystemcall,		/* 69 = mysystemcall	*/
++	do_getppid,		/* 70 = getppid	*/
  	do_sigaction,	/* 71 = sigaction   */
  	do_sigsuspend,	/* 72 = sigsuspend  */
  	do_sigpending,	/* 73 = sigpending  */
