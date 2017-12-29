@@ -1,0 +1,13 @@
+diff --git a/kernel/system/do_fork.c b/kernel/system/do_fork.c
+index f309270..a02b617 100644
+--- a/kernel/system/do_fork.c
++++ b/kernel/system/do_fork.c
+@@ -122,7 +122,7 @@ int do_fork(struct proc * caller, message * m_ptr)
+   rpc->p_seg.p_ttbr = 0;
+   rpc->p_seg.p_ttbr_v = NULL;
+ #endif
+-
++  printf("process forked\n");
+   return OK;
+ }
+ 

@@ -1,0 +1,12 @@
+diff --git a/include/minix/callnr.h b/include/minix/callnr.h
+index 8034f4d..08bb567 100644
+--- a/include/minix/callnr.h
++++ b/include/minix/callnr.h
+@@ -66,6 +66,7 @@
+ #define GETMCONTEXT       67
+ #define SETMCONTEXT       68
+ #define GETPROCCOUNT      69
++#define GETPPID           70
+ 
+ /* Posix signal handling. */
+ #define SIGACTION        71

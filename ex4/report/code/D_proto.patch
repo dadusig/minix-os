@@ -1,0 +1,12 @@
+diff --git a/servers/pm/proto.h b/servers/pm/proto.h
+index 2b2ee76..9e08849 100644
+--- a/servers/pm/proto.h
++++ b/servers/pm/proto.h
+@@ -57,6 +57,7 @@ int do_getepinfo_o(void);
+ int do_svrctl(void);
+ int do_getsetpriority(void);
+ int do_getproccount(void);
++int do_getppid(void);
+ 
+ /* schedule.c */
+ void sched_init(void);
