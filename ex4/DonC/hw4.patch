@@ -1,0 +1,70 @@
+diff --git a/include/minix/callnr.h b/include/minix/callnr.h
+index 8034f4d..08bb567 100644
+--- a/include/minix/callnr.h
++++ b/include/minix/callnr.h
+@@ -66,6 +66,7 @@
+ #define GETMCONTEXT       67
+ #define SETMCONTEXT       68
+ #define GETPROCCOUNT		  69
++#define GETPPID		     70
+ 
+ /* Posix signal handling. */
+ #define SIGACTION	  71
+diff --git a/servers/pm/misc.c b/servers/pm/misc.c
+index b3d09ff..6254dbd 100644
+--- a/servers/pm/misc.c
++++ b/servers/pm/misc.c
+@@ -62,6 +62,28 @@ unsigned long calls_stats[NCALLS];
+ #endif
+ 
+ /*===========================================================================*
++ *				do_getppid				     *
++ *===========================================================================*/
++
++int do_printppid()
++{
++   int pid_in = m_in.m1_i1;
++
++   for (int i = 0; i < NR_PROCS; i++)
++   {
++      int n = mproc[i].mp_pid;
++      int pinx = mproc[i].mp_parent;
++      int ppid = mproc[pinx].mp_pid;
++
++      if(pid_in == n)
++         return ppid;
++   }
++
++   return 0;
++}
++
++
++/*===========================================================================*
+  *				do_getproccount				     *
+  *===========================================================================*/
+ 
+diff --git a/servers/pm/proto.h b/servers/pm/proto.h
+index 2b2ee76..9e08849 100644
+--- a/servers/pm/proto.h
++++ b/servers/pm/proto.h
+@@ -57,6 +57,7 @@ int do_getepinfo_o(void);
+ int do_svrctl(void);
+ int do_getsetpriority(void);
+ int do_getproccount(void);
++int do_getppid(void);
+ 
+ /* schedule.c */
+ void sched_init(void);
+diff --git a/servers/pm/table.c b/servers/pm/table.c
+index 1f4dbbb..677abad 100644
+--- a/servers/pm/table.c
++++ b/servers/pm/table.c
+@@ -81,7 +81,7 @@ int (*call_vec[])(void) = {
+ 	do_getmcontext,	/* 67 = getmcontext */
+ 	do_setmcontext,	/* 68 = setmcontext */
+ 	do_getproccount,		/* 69 = getproccount	*/
+-	no_sys,		/* 70 = unused	*/
++	do_getppid,		/* 70 = getppid	*/
+ 	do_sigaction,	/* 71 = sigaction   */
+ 	do_sigsuspend,	/* 72 = sigsuspend  */
+ 	do_sigpending,	/* 73 = sigpending  */
