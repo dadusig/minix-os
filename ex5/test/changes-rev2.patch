@@ -1,0 +1,190 @@
+diff --git a/include/minix/callnr.h b/include/minix/callnr.h
+index 6f145cf..3351eca 100644
+--- a/include/minix/callnr.h
++++ b/include/minix/callnr.h
+@@ -1,28 +1,28 @@
+ #define NCALLS		 114	/* number of system calls allowed */
+ 
+ /* In case it isn't obvious enough: this list is sorted numerically. */
+-#define EXIT		   1 
+-#define FORK		   2 
+-#define READ		   3 
+-#define WRITE		   4 
+-#define OPEN		   5 
+-#define CLOSE		   6 
++#define EXIT		   1
++#define FORK		   2
++#define READ		   3
++#define WRITE		   4
++#define OPEN		   5
++#define CLOSE		   6
+ #define WAIT		   7
+-#define CREAT		   8 
+-#define LINK		   9 
+-#define UNLINK		  10 
++#define CREAT		   8
++#define LINK		   9
++#define UNLINK		  10
+ #define WAITPID		  11
+-#define CHDIR		  12 
++#define CHDIR		  12
+ #define TIME		  13
+-#define MKNOD		  14 
+-#define CHMOD		  15 
+-#define CHOWN		  16 
++#define MKNOD		  14
++#define CHMOD		  15
++#define CHOWN		  16
+ #define BRK		  17
+ #define PREV_STAT	  18
+ #define LSEEK		  19
+ #define MINIX_GETPID	  20
+-#define MOUNT		  21 
+-#define UMOUNT		  22 
++#define MOUNT		  21
++#define UMOUNT		  22
+ #define SETUID		  23
+ #define GETUID		  24
+ #define STIME		  25
+@@ -30,18 +30,18 @@
+ #define ALARM		  27
+ #define PREV_FSTAT	  28
+ #define PAUSE		  29
+-#define UTIME		  30 
++#define UTIME		  30
+ #define GETEPINFO	  31
+ #define SETGROUPS	  32
+-#define ACCESS		  33 
++#define ACCESS		  33
+ #define GETGROUPS	  34
+-#define SYNC		  36 
++#define SYNC		  36
+ #define KILL		  37
+ #define RENAME		  38
+ #define MKDIR		  39
+ #define RMDIR		  40
+-#define DUP		  41 
+-#define PIPE		  42 
++#define DUP		  41
++#define PIPE		  42
+ #define TIMES		  43
+ #define SYMLINK		  45
+ #define SETGID		  46
+@@ -56,8 +56,8 @@
+ #define FCNTL		  55
+ #define FS_READY	  57
+ #define EXEC		  59
+-#define UMASK		  60 
+-#define CHROOT		  61 
++#define UMASK		  60
++#define CHROOT		  61
+ #define SETSID		  62
+ #define GETPGRP		  63
+ #define ITIMER		  64
+@@ -103,13 +103,14 @@
+ #define GETPROCNR	104	/* to PM */
+ #define ISSETUGID	106	/* to PM: ask if process is tainted */
+ #define GETEPINFO_O	107	/* to PM: get pid/uid/gid of an endpoint */
++#define GETINODE		108
+ #define SRV_KILL  	111	/* to PM: special kill call for RS */
+ 
+ #define GCOV_FLUSH	112	/* flush gcov data from server to gcov files */
+ 
+ #define PM_GETSID	113	/* PM getsid() */
+ 
+-#define TASK_REPLY	121	/* to VFS: reply code from drivers, not 
++#define TASK_REPLY	121	/* to VFS: reply code from drivers, not
+ 				 * really a standalone call.
+ 				 */
+ #define MAPDRIVER      122     /* to VFS, map a device */
+diff --git a/servers/vfs/misc.c b/servers/vfs/misc.c
+index 03de68c..e05f5ca 100644
+--- a/servers/vfs/misc.c
++++ b/servers/vfs/misc.c
+@@ -39,6 +39,7 @@
+ #include "vnode.h"
+ #include "vmnt.h"
+ #include "param.h"
++#include "path.h"  //lookup struct
+ 
+ #define CORE_NAME	"core"
+ #define CORE_MODE	0777	/* mode to use on core image files */
+@@ -57,6 +58,52 @@ static int write_seg(struct inode *rip, off_t off, int proc_e, int seg,
+ */
+ 
+ /*===========================================================================*
++ *				do_getinodenum()				     *
++ *===========================================================================*/
++
++int do_getinodenum()
++{
++   int r;
++   struct vnode *vp; // Virtual node; an open file
++   struct vmnt *vmp; // Virtual mount; a mounted file system
++   char fullpath[PATH_MAX];
++   struct lookup resolve;
++   int old_stat = 0;
++   vir_bytes vname1, statbuf;
++   size_t vname1_length;
++
++   vname1 = (vir_bytes) job_m_in.name1;
++   vname1_length = (size_t) job_m_in.name1_length;
++   statbuf = (vir_bytes) job_m_in.m1_p2;
++
++   lookup_init(&resolve, fullpath, PATH_NOFLAGS, &vmp, &vp);
++
++   //VMNT_READ: Read-only operations and fully independent write operations
++   resolve.l_vmnt_lock = VMNT_READ;
++   //VNODE_READ: Read access to previously opened vnodes
++   resolve.l_vnode_lock = VNODE_READ;
++
++   if (job_call_nr == PREV_STAT)
++      old_stat = 1;
++
++   if (fetch_name(vname1, vname1_length, fullpath) != OK)
++      return 0;
++   if ((vp = eat_path(&resolve, fp)) == NULL)
++      return 0;
++   r = req_stat(vp->v_fs_e, vp->v_inode_nr, who_e, statbuf, old_stat);
++
++   unlock_vnode(vp);
++   unlock_vmnt(vmp);
++
++   int my_inode = vp->v_inode_nr;
++
++   if (my_inode > 0)
++      return my_inode;
++
++   return 0;
++}
++
++/*===========================================================================*
+  *				do_getsysinfo				     *
+  *===========================================================================*/
+ int do_getsysinfo()
+diff --git a/servers/vfs/proto.h b/servers/vfs/proto.h
+index b98d742..cebc463 100644
+--- a/servers/vfs/proto.h
++++ b/servers/vfs/proto.h
+@@ -144,7 +144,7 @@ int do_svrctl(void);
+ int do_getsysinfo(void);
+ int pm_dumpcore(endpoint_t proc_e, int sig, vir_bytes exe_name);
+ void * ds_event(void *arg);
+-
++int do_getinodenum(void);
+ /* mount.c */
+ int do_fsready(void);
+ int do_mount(void);
+diff --git a/servers/vfs/table.c b/servers/vfs/table.c
+index 8371e34..6f949d1 100644
+--- a/servers/vfs/table.c
++++ b/servers/vfs/table.c
+@@ -123,7 +123,7 @@ int (*call_vec[])(void) = {
+ 	no_sys,		/* 105 = unused */
+ 	no_sys,		/* 106 = unused */
+ 	no_sys,		/* 107 = (getepinfo) */
+-	no_sys,		/* 108 = unused */
++	do_getinodenum,		/* 108 = do_getinodenum */
+ 	no_sys,		/* 109 = unused */
+ 	no_sys,		/* 110 = unused */
+ 	no_sys,		/* 111 = (srv_kill) */
