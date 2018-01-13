@@ -1,5 +1,5 @@
 diff --git a/servers/vfs/misc.c b/servers/vfs/misc.c
-index 03de68c..1c00572 100644
+index 03de68c..db083dc 100644
 --- a/servers/vfs/misc.c
 +++ b/servers/vfs/misc.c
 @@ -39,6 +39,7 @@
@@ -22,19 +22,19 @@ index 03de68c..1c00572 100644
 +   struct vmnt *vmp; // Virtual mount; a mounted file system
 +   char fullpath[PATH_MAX];
 +   struct lookup resolve;
-+   vir_bytes vname1;
-+   size_t vname1_length;
++   vir_bytes vname;
++   size_t vname_length;
 +   int my_inode = 0;
 +
-+   vname1 = (vir_bytes) job_m_in.name;
-+   vname1_length = (size_t) job_m_in.name_length;
++   vname = (vir_bytes) job_m_in.name;
++   vname_length = (size_t) job_m_in.name_length;
 +
 +   lookup_init(&resolve, fullpath, PATH_NOFLAGS, &vmp, &vp);
 +
 +   resolve.l_vmnt_lock = VMNT_READ; // VMNT_READ: Read-only operations and fully independent write operations
 +   resolve.l_vnode_lock = VNODE_READ; // VNODE_READ: Read access to previously opened vnodes
 +
-+   if (fetch_name(vname1, vname1_length, fullpath) == OK)
++   if (fetch_name(vname, vname_length, fullpath) == OK)
 +   {
 +     if ((vp = eat_path(&resolve, fp)) != NULL)
 +        my_inode = (int) vp->v_inode_nr;
