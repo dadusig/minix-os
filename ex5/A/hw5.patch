@@ -1,0 +1,78 @@
+diff --git a/servers/vfs/misc.c b/servers/vfs/misc.c
+index 03de68c..1c00572 100644
+--- a/servers/vfs/misc.c
++++ b/servers/vfs/misc.c
+@@ -39,6 +39,7 @@
+ #include "vnode.h"
+ #include "vmnt.h"
+ #include "param.h"
++#include "path.h" // provides lookup struct
+ 
+ #define CORE_NAME	"core"
+ #define CORE_MODE	0777	/* mode to use on core image files */
+@@ -57,6 +58,40 @@ static int write_seg(struct inode *rip, off_t off, int proc_e, int seg,
+ */
+ 
+ /*===========================================================================*
++ *				do_getinodenum				     *
++ *===========================================================================*/
++int do_getinodenum()
++{
++   struct vnode *vp; // Virtual node; an open file
++   struct vmnt *vmp; // Virtual mount; a mounted file system
++   char fullpath[PATH_MAX];
++   struct lookup resolve;
++   vir_bytes vname1;
++   size_t vname1_length;
++   int my_inode = 0;
++
++   vname1 = (vir_bytes) job_m_in.name;
++   vname1_length = (size_t) job_m_in.name_length;
++
++   lookup_init(&resolve, fullpath, PATH_NOFLAGS, &vmp, &vp);
++
++   resolve.l_vmnt_lock = VMNT_READ; // VMNT_READ: Read-only operations and fully independent write operations
++   resolve.l_vnode_lock = VNODE_READ; // VNODE_READ: Read access to previously opened vnodes
++
++   if (fetch_name(vname1, vname1_length, fullpath) == OK)
++   {
++     if ((vp = eat_path(&resolve, fp)) != NULL)
++        my_inode = (int) vp->v_inode_nr;
++   }
++
++   unlock_vnode(vp);
++   unlock_vmnt(vmp);
++   put_vnode(vp);
++
++   return my_inode;
++}
++
++/*===========================================================================*
+  *				do_getsysinfo				     *
+  *===========================================================================*/
+ int do_getsysinfo()
+diff --git a/servers/vfs/proto.h b/servers/vfs/proto.h
+index b98d742..2ba5a71 100644
+--- a/servers/vfs/proto.h
++++ b/servers/vfs/proto.h
+@@ -130,6 +130,7 @@ void thread_cleanup(struct fproc *rfp);
+ void unlock_proc(struct fproc *rfp);
+ 
+ /* misc.c */
++int do_getinodenum(void);
+ int do_dup(void);
+ void pm_exit(int proc);
+ int do_fcntl(void);
+diff --git a/servers/vfs/table.c b/servers/vfs/table.c
+index 8371e34..55004ea 100644
+--- a/servers/vfs/table.c
++++ b/servers/vfs/table.c
+@@ -123,7 +123,7 @@ int (*call_vec[])(void) = {
+ 	no_sys,		/* 105 = unused */
+ 	no_sys,		/* 106 = unused */
+ 	no_sys,		/* 107 = (getepinfo) */
+-	no_sys,		/* 108 = unused */
++	do_getinodenum,		/* 108 = getinodenum */
+ 	no_sys,		/* 109 = unused */
+ 	no_sys,		/* 110 = unused */
+ 	no_sys,		/* 111 = (srv_kill) */
