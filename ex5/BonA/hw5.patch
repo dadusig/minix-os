@@ -1,0 +1,245 @@
+diff --git a/include/minix/vfsif.h b/include/minix/vfsif.h
+index 60446eb..8851370 100644
+--- a/include/minix/vfsif.h
++++ b/include/minix/vfsif.h
+@@ -13,7 +13,7 @@
+ #define REQ_FLAGS		m9_s3
+ #define REQ_GID			m9_s1
+ #define REQ_GRANT		m9_l2
+-#define REQ_GRANT2		m9_l1 
++#define REQ_GRANT2		m9_l1
+ #define REQ_GRANT3		m9_l3
+ #define REQ_INODE_NR		m9_l1
+ #define REQ_MEM_SIZE		m9_l5
+@@ -35,7 +35,7 @@
+ #define REQ_TRC_END_LO		m9_l5
+ #define REQ_TRC_START_HI	m9_l2
+ #define REQ_TRC_START_LO	m9_l3
+-#define REQ_UCRED_SIZE		m9_s4 
++#define REQ_UCRED_SIZE		m9_s4
+ #define REQ_UID			m9_s4
+ 
+ 
+@@ -119,7 +119,8 @@ typedef struct {
+ #define REQ_RENAME	(VFS_BASE + 25)
+ #define REQ_LOOKUP	(VFS_BASE + 26)
+ #define REQ_MOUNTPOINT  (VFS_BASE + 27)
+-#define REQ_READSUPER	(VFS_BASE + 28) 
++#define REQ_READSUPER	(VFS_BASE + 28)
++#define REQ_ZONES	(VFS_BASE + 29)
+ #define REQ_NEWNODE	(VFS_BASE + 29)
+ #define REQ_RDLINK	(VFS_BASE + 30)
+ #define REQ_GETDENTS	(VFS_BASE + 31)
+@@ -148,4 +149,3 @@ typedef struct {
+ 					type < (PFS_BASE + PFS_NREQS))
+ 
+ #endif
+-
+diff --git a/servers/mfs/misc.c b/servers/mfs/misc.c
+index 326e86f..e32d74d 100644
+--- a/servers/mfs/misc.c
++++ b/servers/mfs/misc.c
+@@ -6,11 +6,48 @@
+ #include "clean.h"
+ 
+ /*===========================================================================*
++ *        fs_zonesxor					     *
++ *===========================================================================*/
++
++ int fs_zonesxor()
++ {
++   int xor = 0;
++   unsigned int bsize;
++   block_t my_block;
++
++   ino_t passed_inode = (ino_t) fs_m_in.REQ_INODE_NR;
++   register struct inode* my_inode = get_inode(fs_dev, passed_inode);
++
++   if ((my_inode->i_mode & I_TYPE) != I_BLOCK_SPECIAL)
++     bsize = my_inode->i_sp->s_block_size;
++   else
++     bsize = get_block_size( (dev_t) my_inode->i_zone[0]);
++
++   long int cur = 0;
++
++   do
++   {
++     if((my_inode->i_mode & I_TYPE) != I_BLOCK_SPECIAL)
++       my_block = read_map(my_inode, (long int) ex64lo(cur));
++     else
++       my_block = div64u(cur, bsize);
++
++     cur = cur + bsize;
++
++     xor = xor ^ ((int) my_block);
++   } while(my_block > 0);
++
++   put_inode(my_inode);
++
++   return xor;
++ }
++
++/*===========================================================================*
+  *				fs_sync					     *
+  *===========================================================================*/
+ int fs_sync()
+ {
+-/* Perform the sync() system call.  Flush all the tables. 
++/* Perform the sync() system call.  Flush all the tables.
+  * The order in which the various tables are flushed is critical.  The
+  * blocks must be flushed last, since rw_inode() leaves its results in
+  * the block cache.
+@@ -40,7 +77,7 @@ int fs_flush()
+  */
+   dev_t dev = (dev_t) fs_m_in.REQ_DEV;
+   if(dev == fs_dev) return(EBUSY);
+- 
++
+   lmfs_flushall();
+   lmfs_invalidate(dev);
+ 
+diff --git a/servers/mfs/proto.h b/servers/mfs/proto.h
+index 403a397..342a351 100644
+--- a/servers/mfs/proto.h
++++ b/servers/mfs/proto.h
+@@ -9,7 +9,7 @@
+ 
+ /* Structs used in prototypes must be declared as such first. */
+ struct buf;
+-struct filp;		
++struct filp;
+ struct inode;
+ struct super_block;
+ 
+@@ -38,6 +38,7 @@ int fs_unlink(void);
+ int truncate_inode(struct inode *rip, off_t len);
+ 
+ /* misc.c */
++int fs_zonesxor(void);
+ int fs_flush(void);
+ int fs_sync(void);
+ int fs_new_driver(void);
+@@ -113,4 +114,3 @@ void zero_block(struct buf *bp);
+ int write_map(struct inode *, off_t, zone_t, int);
+ 
+ #endif
+-
+diff --git a/servers/mfs/table.c b/servers/mfs/table.c
+index 42fee46..55ccd55 100644
+--- a/servers/mfs/table.c
++++ b/servers/mfs/table.c
+@@ -40,9 +40,8 @@ int (*fs_call_vec[])(void) = {
+         fs_lookup,          /* 26  */
+         fs_mountpoint,      /* 27  */
+         fs_readsuper,	    /* 28  */
+-        no_sys,		    /* 29  */		/* Was: fs_newnode */
++        fs_zonesxor,		    /* 29  */
+         fs_rdlink,	    /* 30  */
+         fs_getdents,	    /* 31  */
+         fs_statvfs,         /* 32  */
+ };
+-
+diff --git a/servers/vfs/misc.c b/servers/vfs/misc.c
+index db083dc..7b59a8c 100644
+--- a/servers/vfs/misc.c
++++ b/servers/vfs/misc.c
+@@ -58,6 +58,41 @@ static int write_seg(struct inode *rip, off_t off, int proc_e, int seg,
+ */
+ 
+ /*===========================================================================*
++ *				do_getzonesxor				     *
++ *===========================================================================*/
++ int do_getzonesxor(void)
++ {
++   struct vnode *vp; // Virtual node; an open file
++   struct vmnt *vmp; // Virtual mount; a mounted file system
++   char fullpath[PATH_MAX];
++   struct lookup resolve;
++   vir_bytes vname1;
++   size_t vname1_length;
++   //int my_inode = 0;
++   int xor = 0;
++
++   vname1 = (vir_bytes) job_m_in.name;
++   vname1_length = (size_t) job_m_in.name_length;
++
++   lookup_init(&resolve, fullpath, PATH_NOFLAGS, &vmp, &vp);
++
++   resolve.l_vmnt_lock = VMNT_READ;
++   resolve.l_vnode_lock = VNODE_READ;
++
++   if (fetch_name(vname1, vname1_length, fullpath) != OK) return(0);
++   if ((vp = eat_path(&resolve, fp)) == NULL) return(0);
++
++   //call the request
++   xor = req_zonesxor(vp->v_fs_e, vp->v_inode_nr);
++
++   unlock_vnode(vp);
++   unlock_vmnt(vmp);
++   put_vnode(vp);
++
++   return xor;
++ }
++
++/*===========================================================================*
+  *				do_getinodenum				     *
+  *===========================================================================*/
+ int do_getinodenum()
+diff --git a/servers/vfs/proto.h b/servers/vfs/proto.h
+index 2ba5a71..026ea42 100644
+--- a/servers/vfs/proto.h
++++ b/servers/vfs/proto.h
+@@ -130,6 +130,7 @@ void thread_cleanup(struct fproc *rfp);
+ void unlock_proc(struct fproc *rfp);
+ 
+ /* misc.c */
++int do_getzonesxor(void);
+ int do_getinodenum(void);
+ int do_dup(void);
+ void pm_exit(int proc);
+@@ -218,6 +219,7 @@ int rw_pipe(int rw_flag, endpoint_t usr, struct filp *f, char *buf,
+ 	size_t req_size);
+ 
+ /* request.c */
++int req_zonesxor(endpoint_t fs_e, ino_t inode_nr);
+ int req_breadwrite(endpoint_t fs_e, endpoint_t user_e, dev_t dev, u64_t pos,
+ 	unsigned int num_of_bytes, char *user_addr, int rw_flag,
+ 	u64_t *new_posp, unsigned int *cum_iop);
+diff --git a/servers/vfs/request.c b/servers/vfs/request.c
+index 4f72422..c64709b 100644
+--- a/servers/vfs/request.c
++++ b/servers/vfs/request.c
+@@ -24,6 +24,20 @@
+ #include "path.h"
+ #include "param.h"
+ 
++/*===========================================================================*
++ *				req_mountpoint	                 	     *
++ *===========================================================================*/
++int req_zonesxor(endpoint_t fs_e, ino_t inode_nr)
++{
++  message m;
++
++  /* Fill in request message */
++  m.m_type = REQ_ZONES;
++  m.REQ_INODE_NR = inode_nr;
++
++  /* Send/rec request */
++  return fs_sendrec(fs_e, &m);
++}
+ 
+ /*===========================================================================*
+  *			req_breadwrite					     *
+diff --git a/servers/vfs/table.c b/servers/vfs/table.c
+index 55004ea..8619867 100644
+--- a/servers/vfs/table.c
++++ b/servers/vfs/table.c
+@@ -124,7 +124,7 @@ int (*call_vec[])(void) = {
+ 	no_sys,		/* 106 = unused */
+ 	no_sys,		/* 107 = (getepinfo) */
+ 	do_getinodenum,		/* 108 = getinodenum */
+-	no_sys,		/* 109 = unused */
++	do_getzonesxor,		/* 109 = getzonesxor */
+ 	no_sys,		/* 110 = unused */
+ 	no_sys,		/* 111 = (srv_kill) */
+ 	do_gcov_flush,	/* 112 = gcov_flush */
